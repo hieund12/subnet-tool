@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Công cụ chia Subnet IP</title>
+  <title>Công cụ chia Subnet IP - Big Update</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
     .subnet-tool {
-      max-width: 700px; margin: auto; padding: 20px; border: 2px solid #eee; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 700px; margin: auto; padding: 20px;
+      border: 2px solid #eee; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     h3 { text-align: center; color: #007BFF; }
     input, button {
@@ -20,6 +21,7 @@
     table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
     table, th, td { border: 1px solid #ccc; }
     th, td { padding: 8px; text-align: center; }
+    tr:hover { background-color: #f9f9f9; }
     @media (max-width: 600px) {
       body { padding: 10px; }
       .subnet-tool { padding: 15px; }
@@ -29,7 +31,7 @@
 </head>
 <body>
   <div class="subnet-tool">
-    <h3>Công cụ chia Subnet IP</h3>
+    <h3>Công cụ chia Subnet IP (Usable IP Only)</h3>
     <input type="text" id="ipInput" placeholder="Nhập IP/Mask (VD: 192.168.1.0/26)">
     <input type="number" id="limitInput" placeholder="Nhập số lượng subnet muốn xem (VD: 2)">
     <button onclick="splitSubnet()">Chia subnet</button>
@@ -39,6 +41,7 @@
 
   <script>
     let generatedSubnets = [];
+
     function isValidIP(ip) {
       const parts = ip.split('.');
       if (parts.length !== 4) return false;
@@ -47,26 +50,32 @@
         return n >= 0 && n <= 255 && part !== '';
       });
     }
+
     function ipToInt(ip) {
       return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0) >>> 0;
     }
+
     function intToIp(int) {
       return [(int >>> 24) & 255, (int >>> 16) & 255, (int >>> 8) & 255, int & 255].join('.');
     }
+
     function splitSubnet() {
       const input = document.getElementById('ipInput').value.trim();
       const limitInput = document.getElementById('limitInput').value.trim();
       const [ipStr, maskStr] = input.split('/');
+
       if (!ipStr || !maskStr || isNaN(parseInt(maskStr)) || parseInt(maskStr) > 32) {
         document.getElementById('output').innerHTML = '<p style="color:red;">Vui lòng nhập đúng dạng IP/Mask!</p>';
         document.getElementById('exportBtn').style.display = 'none';
         return;
       }
+
       if (!isValidIP(ipStr)) {
         document.getElementById('output').innerHTML = '<p style="color:red;">IP không hợp lệ! (Ví dụ đúng: 192.168.1.0)</p>';
         document.getElementById('exportBtn').style.display = 'none';
         return;
       }
+
       const ipInt = ipToInt(ipStr);
       const maskBits = parseInt(maskStr);
       const subnetSize = Math.pow(2, 32 - maskBits);
@@ -83,45 +92,57 @@
         <p><b>Network Address:</b> ${intToIp(networkAddress)}</p>
         <p><b>Subnet Mask:</b> ${maskBits}</p>
         <p><b>Số lượng IP mỗi subnet:</b> ${subnetSize} IP</p>
-        <p><b>Hiển thị ${limit} subnet:</b></p>
+        <p><b>Hiển thị ${limit} subnet (usable IPs):</b></p>
         <table>
-          <tr><th>Subnet</th><th>IP bắt đầu</th><th>IP kết thúc</th></tr>
+          <tr><th>Subnet</th><th>IP usable bắt đầu</th><th>IP usable kết thúc</th></tr>
       `;
+
       generatedSubnets = [];
       for (let i = 0; i < limit; i++) {
         const subnetStart = networkAddress + (i * subnetSize);
         const subnetEnd = subnetStart + subnetSize - 1;
         if (subnetEnd > broadcastAddress) break;
-        html += `<tr><td>${i+1}</td><td>${intToIp(subnetStart)}</td><td>${intToIp(subnetEnd)}</td></tr>`;
-        generatedSubnets.push([i+1, intToIp(subnetStart), intToIp(subnetEnd)]);
+
+        if (subnetSize <= 2) {
+          // /31 hoặc /32 -> không usable IP
+          html += `<tr><td>${i+1}</td><td>Không có usable IP</td><td>Không có usable IP</td></tr>`;
+          generatedSubnets.push([i+1, "Không có usable IP", "Không có usable IP"]);
+        } else {
+          html += `<tr>
+            <td>${i+1}</td>
+            <td>${intToIp(subnetStart + 1)}</td>
+            <td>${intToIp(subnetEnd - 1)}</td>
+          </tr>`;
+          generatedSubnets.push([i+1, intToIp(subnetStart + 1), intToIp(subnetEnd - 1)]);
+        }
       }
+
       html += `</table>`;
       document.getElementById('output').innerHTML = html;
       document.getElementById('exportBtn').style.display = generatedSubnets.length ? 'block' : 'none';
     }
-function exportCSV() {
-  if (generatedSubnets.length === 0) return;
 
-  let rows = [["Subnet", "IP bắt đầu", "IP kết thúc"]];
-  generatedSubnets.forEach(row => {
-    rows.push(row.map(cell => `"${cell}"`)); // ⚡ Bọc mỗi ô bằng dấu " để tránh lỗi dấu phẩy CSV
-  });
+    function exportCSV() {
+      if (generatedSubnets.length === 0) return;
 
-  let csvContent = rows.map(e => e.join(",")).join("\r\n"); // ⚡ Dùng "\r\n" thay vì "\n" để hợp chuẩn CSV Windows
+      let rows = [["Subnet", "IP usable bắt đầu", "IP usable kết thúc"]];
+      generatedSubnets.forEach(row => {
+        rows.push(row.map(cell => `"${cell}"`));
+      });
 
-  const bom = "\uFEFF"; // BOM giúp Excel nhận UTF-8
-  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
+      let csvContent = rows.map(e => e.join(",")).join("\r\n");
 
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "tinhoctuduy_subnets.csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
+      const bom = "\uFEFF";
+      const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
 
-
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "subnets.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   </script>
 </body>
 </html>
