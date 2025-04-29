@@ -99,26 +99,28 @@
       document.getElementById('output').innerHTML = html;
       document.getElementById('exportBtn').style.display = generatedSubnets.length ? 'block' : 'none';
     }
-    function exportCSV() {
+function exportCSV() {
   if (generatedSubnets.length === 0) return;
 
   let rows = [["Subnet", "IP bắt đầu", "IP kết thúc"]];
   generatedSubnets.forEach(row => {
-    rows.push(row);
+    rows.push(row.map(cell => `"${cell}"`)); // ⚡ Bọc mỗi ô bằng dấu " để tránh lỗi dấu phẩy CSV
   });
 
-  let csvContent = rows.map(e => e.join(",")).join("\n");
+  let csvContent = rows.map(e => e.join(",")).join("\r\n"); // ⚡ Dùng "\r\n" thay vì "\n" để hợp chuẩn CSV Windows
 
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" }); // ➔ BOM + nội dung CSV
+  const bom = "\uFEFF"; // BOM giúp Excel nhận UTF-8
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", "subnets.csv");
+  link.href = url;
+  link.download = "tinhoctuduy_subnets.csv";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
+
 
   </script>
 </body>
